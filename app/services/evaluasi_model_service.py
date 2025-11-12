@@ -41,7 +41,9 @@ def create_evaluasi_model_service():
         mi_scores = mutual_info_classif(X_train_scaled, y_train, random_state=42)
         mi_df = pd.DataFrame({'Fitur': X.columns, 'MI Score': mi_scores})
         mi_df = mi_df.sort_values(by='MI Score', ascending=False)
-        # print(mi_df)
+
+        print("\n=== MI Scores ===")
+        print(mi_df)
 
         # Normalisasi skor MI ke [0,1]
         mi_scores_norm = (mi_scores - mi_scores.min()) / (mi_scores.max() - mi_scores.min())

@@ -122,3 +122,13 @@ def create():
     # Simpan hasil
     output_path = "data/dataset.csv"
     df.to_csv(output_path, index=False)
+
+def read():
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        dataset_path = os.path.join(base_dir, "data", "dataset.csv")
+        df = pd.read_csv(dataset_path)
+
+        return df.to_dict(orient="records")
+    except Exception as e:
+        return e
