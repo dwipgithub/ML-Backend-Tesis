@@ -34,3 +34,25 @@ def read_dataset():
                 data=None
             ).model_dump()
         )
+
+@router.get("/dataset/statistic")
+def read_dataset_statistic():
+    try:
+        result = dataset_controller.statistic()
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=ApiResponse(
+                error=False,
+                message="Data Found",
+                data=result
+            ).model_dump()
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content=ApiResponse(
+                error=True,
+                message= f"{e}",
+                data=None
+            ).model_dump()
+        )

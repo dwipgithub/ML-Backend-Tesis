@@ -132,3 +132,14 @@ def read():
         return df.to_dict(orient="records")
     except Exception as e:
         return e
+
+def statistic():
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        dataset_path = os.path.join(base_dir, "data", "dataset.csv")
+        df = pd.read_csv(dataset_path)
+
+        stats = df.describe().transpose()
+        return stats.to_dict(orient="index")
+    except Exception as e:
+        return e
