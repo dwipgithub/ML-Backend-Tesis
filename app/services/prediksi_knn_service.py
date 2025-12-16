@@ -44,13 +44,39 @@ def create_predict_knn_service(input_data: dict):
 
         # 🧠 Prediksi
         prediction = model.predict(weighted_input)[0]
-        probability = model.predict_proba(weighted_input)[0][1] if hasattr(model, "predict_proba") else None
+
+        probability = (
+            model.predict_proba(weighted_input)[0][1]
+            if hasattr(model, "predict_proba")
+            else None
+        )
+
+        # 🎯 Hitung manual probabilitas dengan melihat tetangga
+        distances, indices = model.kneighbors(weighted_input)
+
+        # Ambil kelas masing-masing tetangga
+        neighbor_labels = model._y[indices][0]
+
+        # Hitung jumlah kelas
+        count_class_1 = int(sum(neighbor_labels))
+        count_class_0 = int(len(neighbor_labels) - count_class_1)
+
+        # Probabilitas manual
+        manual_probability = count_class_1 / len(neighbor_labels)
 
         return {
+            "status": True,
             "message": "Prediksi berhasil dilakukan.",
             "data": {
                 "prediction": int(prediction),
                 "probability": float(probability) if probability is not None else None,
+                "probabilityCalculation": {
+                    "k": len(neighbor_labels),
+                    "neighborLabels": neighbor_labels.tolist(),
+                    "countClass0": count_class_0,
+                    "countClass1": count_class_1,
+                    "manualProbability": manual_probability
+                },
                 "label": "Berisiko Penyakit Jantung" if prediction == 1 else "Tidak Berisiko"
             }
         }

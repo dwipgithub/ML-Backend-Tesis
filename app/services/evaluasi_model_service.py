@@ -42,9 +42,6 @@ def create_evaluasi_model_service():
         mi_df = pd.DataFrame({'Fitur': X.columns, 'MI Score': mi_scores})
         mi_df = mi_df.sort_values(by='MI Score', ascending=False)
 
-        print("\n=== MI Scores ===")
-        print(mi_df)
-
         # Normalisasi skor MI ke [0,1]
         mi_scores_norm = (mi_scores - mi_scores.min()) / (mi_scores.max() - mi_scores.min())
 
@@ -62,8 +59,6 @@ def create_evaluasi_model_service():
             'ReliefF Score': relief_scores
         }).sort_values(by='ReliefF Score', ascending=False)
 
-        print("\n=== ReliefF Scores ===")
-        print(relief_df)
 
         X_train_relief = X_train_scaled * relief_scores
         X_test_relief = X_test_scaled * relief_scores
@@ -101,12 +96,12 @@ def create_evaluasi_model_service():
         # Pastikan folder 'data' ada
         os.makedirs(save_dir, exist_ok=True)
 
-        # Buat nama file
-        filename = os.path.join(save_dir, "hasil_evaluasi_model.pkl")
+        # # Buat nama file
+        # filename = os.path.join(save_dir, "hasil_evaluasi_model.pkl")
 
-        # Simpan DataFrame hasil evaluasi ke file pickle
-        with open(filename, "wb") as f:
-            pickle.dump(df_results, f)
+        # # Simpan DataFrame hasil evaluasi ke file pickle
+        # with open(filename, "wb") as f:
+        #     pickle.dump(df_results, f)
 
         return df_results.to_dict(orient="records")
     except Exception as e:

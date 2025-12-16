@@ -1,27 +1,19 @@
 from fastapi import APIRouter, status
-from app.controllers import dataset_controller
 from fastapi.responses import JSONResponse
+from app.controllers import logreg_controller
 from app.models.response import ApiResponse
 
 router = APIRouter()
 
-@router.post("/dataset/penyakit-jantung", status_code=status.HTTP_201_CREATED)
-def create_dataset():
-    matrics = dataset_controller.create()
-    return {
-        "status": True,
-        "message": "Dataset Created Successfully",
-    }
-
-@router.get("/dataset/penyakit-jantung")
-def read_dataset():
+@router.post("/pemodelan-logreg")
+def create_pemodelan_router():
     try:
-        result = dataset_controller.read()
+        result = logreg_controller.create_pemodelan_controller()
         return JSONResponse(
-            status_code=status.HTTP_200_OK,
+            status_code=status.HTTP_201_CREATED,
             content=ApiResponse(
                 error=False,
-                message="Data Found",
+                message="Modeling Created",
                 data=result
             ).model_dump()
         )
@@ -35,16 +27,20 @@ def read_dataset():
             ).model_dump()
         )
 
-@router.get("/dataset/penyakit-jantung/statistik")
-def read_dataset_statistic():
+@router.get("/pemodelan-logreg")
+def read_pemodelan_logreg_router():
     try:
-        result = dataset_controller.statistic()
+        result = logreg_controller.read_pemodelan_controller()
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content=ApiResponse(
                 error=False,
-                message="Data Found",
-                data=result
+                message="Model Logreg berhasil dimuat.",
+                data={
+                    "features": result["features"],
+                    "mi_scores_norm": result["mi_scores_norm"].tolist(),
+                    "model_type": type(result["model"]).__name__
+                }
             ).model_dump()
         )
     except Exception as e:
