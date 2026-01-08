@@ -133,6 +133,18 @@ def read():
     except Exception as e:
         return e
 
+def read_class_distribution():
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        dataset_path = os.path.join(base_dir, "data", "dataset.csv")
+        df = pd.read_csv(dataset_path)
+
+        distribution = df["Status_Penyakit_Jantung"].value_counts().sort_index()
+
+        return distribution
+    except Exception as e:
+        return e
+
 def statistic():
     try:
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
