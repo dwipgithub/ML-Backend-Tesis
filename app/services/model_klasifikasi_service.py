@@ -16,8 +16,8 @@ timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 def load_and_preprocess():
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    dataset_path = os.path.join(base_dir, "data", "dataset.csv")
-    df = pd.read_csv(dataset_path)
+    dataset_path = os.path.join(base_dir, "data", "dataset-1-cleaned.csv")
+    df = pd.read_csv(dataset_path, sep=';')
 
     X = df.drop("Status_Penyakit_Jantung", axis=1)
     y = df["Status_Penyakit_Jantung"]
@@ -340,30 +340,36 @@ def create_prediksi_knn_service(input_data: dict):
             "message": f"Terjadi kesalahan saat melakukan prediksi: {e}",
             "data": None
         }
-    
+
 def create_prediksi_lr_service(input_data: dict):
     try:
-        # Tentukan path model variant MI (paling umum dipakai)
+        import os, pickle, numpy as np, pandas as pd
+        from math import exp
+
+        # ======================================================
+        # Load model
+        # ======================================================
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        model_path = os.path.join(base_dir, "pkl", "models", "lr", "mi.pkl")
+        model_path = os.path.join(base_dir, "pkl", "models", "lr", "relieff.pkl")
 
         if not os.path.exists(model_path):
             return {
                 "status": False,
-                "message": "Model Logistic Regression tidak ditemukan. Harap jalankan training terlebih dahulu.",
+                "message": "Model Logistic Regression tidak ditemukan.",
                 "data": None
             }
 
-        # 📦 Muat model, scaler, dan informasi lainnya
         with open(model_path, "rb") as f:
             model_data = pickle.load(f)
 
         model = model_data["model"]
         scaler = model_data["scaler"]
         mi_scores_norm = model_data["mi_scores_norm"]
-        features = model_data["features"]  # daftar nama fitur asli
+        features = model_data["features"]
 
-        # 🧾 Cek apakah semua fitur ada pada input
+        # ======================================================
+        # Validasi input
+        # ======================================================
         missing_features = [f for f in features if f not in input_data]
         if missing_features:
             return {
@@ -372,35 +378,104 @@ def create_prediksi_lr_service(input_data: dict):
                 "data": None
             }
 
-        # 📊 Buat dataframe berdasarkan urutan fitur
+        # ======================================================
+        # Persiapan data
+        # ======================================================
         input_df = pd.DataFrame([input_data])[features]
-
-        # 🔢 Scaling
         scaled_input = scaler.transform(input_df)
-
-        # ⚖️ MI weighting
         weighted_input = scaled_input * mi_scores_norm
 
-        # 🧠 Prediksi
-        prediction = model.predict(weighted_input)[0]
-
-        # Logistic Regression memiliki predict_proba → aman digunakan
+        # ======================================================
+        # Prediksi
+        # ======================================================
+        prediction = int(model.predict(weighted_input)[0])
         probability = float(model.predict_proba(weighted_input)[0][1])
 
+        # ======================================================
+        # INTERPRETASI TEKNIS (log-odds & odds ratio)
+        # ======================================================
+        coef = model.coef_[0]
+        logit_score = float(np.dot(weighted_input[0], coef) + model.intercept_[0])
+
+        kontribusi_fitur = []
+        for i, fitur in enumerate(features):
+            kontribusi = weighted_input[0][i] * coef[i]
+            kontribusi_fitur.append({
+                "fitur": fitur,
+                "nilai_input": float(input_df.iloc[0, i]),
+                "koefisien": float(coef[i]),
+                "kontribusi_log_odds": float(kontribusi),
+                "odds_ratio": float(exp(coef[i]))
+            })
+
+        # Urutkan kontribusi
+        kontribusi_sorted = sorted(
+            kontribusi_fitur,
+            key=lambda x: abs(x["kontribusi_log_odds"]),
+            reverse=True
+        )
+
+        faktor_risiko = [f for f in kontribusi_sorted if f["kontribusi_log_odds"] > 0][:5]
+        faktor_protektif = [f for f in kontribusi_sorted if f["kontribusi_log_odds"] < 0][:5]
+
+        # ======================================================
+        # 🩺 INTERPRETASI KLINIS (Bahasa Dokter)
+        # ======================================================
+        faktor_risiko_nama = [f["fitur"].replace("_", " ") for f in faktor_risiko]
+        faktor_protektif_nama = [f["fitur"].replace("_", " ") for f in faktor_protektif]
+
+        if probability >= 0.7:
+            tingkat_risiko = "tinggi"
+        elif probability >= 0.5:
+            tingkat_risiko = "sedang"
+        else:
+            tingkat_risiko = "rendah"
+
+        interpretasi_klinis = (
+            f"Pasien diprediksi memiliki risiko penyakit jantung dengan probabilitas "
+            f"sekitar {round(probability * 100, 1)}%, yang termasuk dalam kategori "
+            f"risiko {tingkat_risiko}. "
+        )
+
+        if faktor_risiko_nama:
+            interpretasi_klinis += (
+                "Faktor utama yang berkontribusi terhadap peningkatan risiko meliputi "
+                + ", ".join(faktor_risiko_nama[:3]) + ". "
+            )
+
+        if faktor_protektif_nama:
+            interpretasi_klinis += (
+                "Di sisi lain, terdapat faktor yang bersifat protektif, yaitu "
+                + ", ".join(faktor_protektif_nama[:2]) + ", yang membantu menurunkan risiko. "
+            )
+
+        interpretasi_klinis += (
+            "Hasil ini dapat digunakan sebagai alat bantu pendukung keputusan klinis "
+            "dan tidak menggantikan diagnosis dokter."
+        )
+
+        # ======================================================
+        # RESPONSE
+        # ======================================================
         return {
-            "status": True,
-            "message": "Prediksi Logistic Regression berhasil dilakukan.",
-            "data": {
-                "prediction": int(prediction),
-                "probability": probability,
-                "label": "Berisiko Penyakit Jantung" if prediction == 1 else "Tidak Berisiko"
-            }
+            "prediction": prediction,
+            "label": "Berisiko Penyakit Jantung" if prediction == 1 else "Tidak Berisiko",
+            "probability": f"{round(probability * 100, 1)}%",
+
+            "interpretasi_akademis": {
+                "logit_score": logit_score,
+                "top_faktor_peningkat_risiko": faktor_risiko,
+                "top_faktor_penurun_risiko": faktor_protektif,
+                "seluruh_kontribusi_fitur": kontribusi_sorted
+            },
+
+            "interpretasi_klinis": interpretasi_klinis
         }
 
     except Exception as e:
         return {
             "status": False,
-            "message": f"Terjadi kesalahan saat melakukan prediksi: {e}",
+            "message": f"Terjadi kesalahan saat prediksi: {e}",
             "data": None
         }
 
@@ -517,8 +592,8 @@ def read_evaluasi_model_service():
     try:
         # Load dataset
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        dataset_path = os.path.join(base_dir, "data", "dataset.csv")
-        df = pd.read_csv(dataset_path)
+        dataset_path = os.path.join(base_dir, "data", "dataset-1-cleaned.csv")
+        df = pd.read_csv(dataset_path, sep=';')
 
         # Pisahkan fitur dan target
         X = df.drop("Status_Penyakit_Jantung", axis=1)
@@ -565,19 +640,19 @@ def read_evaluasi_model_service():
         results = {}
 
         # KNN
-        results["KNN Tanpa Weighting"] = get_metrics(y_test, KNeighborsClassifier(5).fit(X_train_scaled, y_train).predict(X_test_scaled))
-        results["KNN MI Weighting"] = get_metrics(y_test, KNeighborsClassifier(5).fit(X_train_mi, y_train).predict(X_test_mi))
-        results["KNN ReliefF Weighting"] = get_metrics(y_test, KNeighborsClassifier(5).fit(X_train_relief, y_train).predict(X_test_relief))
+        results["KNN Tanpa Pembobotan"] = get_metrics(y_test, KNeighborsClassifier(5).fit(X_train_scaled, y_train).predict(X_test_scaled))
+        results["KNN MI Pembobotan"] = get_metrics(y_test, KNeighborsClassifier(5).fit(X_train_mi, y_train).predict(X_test_mi))
+        results["KNN ReliefF Pembobotan"] = get_metrics(y_test, KNeighborsClassifier(5).fit(X_train_relief, y_train).predict(X_test_relief))
 
         # Naive Bayes
-        results["NB Tanpa Weighting"] = get_metrics(y_test, GaussianNB().fit(X_train_scaled, y_train).predict(X_test_scaled))
-        results["NB MI Weighting"] = get_metrics(y_test, GaussianNB().fit(X_train_mi, y_train).predict(X_test_mi))
-        results["NB ReliefF Weighting"] = get_metrics(y_test, GaussianNB().fit(X_train_relief, y_train).predict(X_test_relief))
+        results["NB Tanpa Pembobotan"] = get_metrics(y_test, GaussianNB().fit(X_train_scaled, y_train).predict(X_test_scaled))
+        results["NB MI Pembobotan"] = get_metrics(y_test, GaussianNB().fit(X_train_mi, y_train).predict(X_test_mi))
+        results["NB ReliefF Pembobotan"] = get_metrics(y_test, GaussianNB().fit(X_train_relief, y_train).predict(X_test_relief))
 
         # Logistic Regression
-        results["LR Tanpa Weighting"] = get_metrics(y_test, LogisticRegression(max_iter=1000, random_state=42).fit(X_train_scaled, y_train).predict(X_test_scaled))
-        results["LR MI Weighting"] = get_metrics(y_test, LogisticRegression(max_iter=1000, random_state=42).fit(X_train_mi, y_train).predict(X_test_mi))
-        results["LR ReliefF Weighting"] = get_metrics(y_test, LogisticRegression(max_iter=1000, random_state=42).fit(X_train_relief, y_train).predict(X_test_relief))
+        results["LR Tanpa Pembobotan"] = get_metrics(y_test, LogisticRegression(max_iter=1000, random_state=42).fit(X_train_scaled, y_train).predict(X_test_scaled))
+        results["LR MI Pembobotan"] = get_metrics(y_test, LogisticRegression(max_iter=1000, random_state=42).fit(X_train_mi, y_train).predict(X_test_mi))
+        results["LR ReliefF Pembobotan"] = get_metrics(y_test, LogisticRegression(max_iter=1000, random_state=42).fit(X_train_relief, y_train).predict(X_test_relief))
 
         # Buat DataFrame hasil
         df_results = pd.DataFrame(results).T.round(4)
@@ -599,8 +674,8 @@ def read_peringkat_fitur_service():
     try:
         # Load dataset
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        dataset_path = os.path.join(base_dir, "data", "dataset.csv")
-        df = pd.read_csv(dataset_path)
+        dataset_path = os.path.join(base_dir, "data", "dataset-1-cleaned.csv")
+        df = pd.read_csv(dataset_path, sep=';')
 
         # Pisahkan fitur dan target
         X = df.drop("Status_Penyakit_Jantung", axis=1)
@@ -658,5 +733,3 @@ def read_peringkat_fitur_service():
 
     except Exception as e:
         return {"error": str(e)}
-
-

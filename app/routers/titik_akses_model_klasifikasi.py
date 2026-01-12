@@ -113,7 +113,7 @@ def create_prediksi_lr_router(input_data: dict):
             status_code=status.HTTP_201_CREATED,
             content=ApiResponse(
                 error=False,
-                message="Prediksi LR berhasil dibuat.",
+                message="Prediksi dan interpretasi Logistic Regression berhasil dibuat.",
                 data=result
             ).model_dump()
         )
