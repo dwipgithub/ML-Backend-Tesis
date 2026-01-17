@@ -16,7 +16,7 @@ timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 def load_and_preprocess():
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    dataset_path = os.path.join(base_dir, "data", "dataset-1-cleaned.csv")
+    dataset_path = os.path.join(base_dir, "data", "dataset-cleaned.csv")
     df = pd.read_csv(dataset_path, sep=';')
 
     X = df.drop("Status_Penyakit_Jantung", axis=1)
@@ -450,8 +450,7 @@ def create_prediksi_lr_service(input_data: dict):
             )
 
         interpretasi_klinis += (
-            "Hasil ini dapat digunakan sebagai alat bantu pendukung keputusan klinis "
-            "dan tidak menggantikan diagnosis dokter."
+            "Hasil ini dapat digunakan sebagai alat bantu pendukung keputusan klinis. "
         )
 
         # ======================================================
@@ -592,7 +591,7 @@ def read_evaluasi_model_service():
     try:
         # Load dataset
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        dataset_path = os.path.join(base_dir, "data", "dataset-1-cleaned.csv")
+        dataset_path = os.path.join(base_dir, "data", "dataset-cleaned.csv")
         df = pd.read_csv(dataset_path, sep=';')
 
         # Pisahkan fitur dan target
@@ -674,7 +673,7 @@ def read_peringkat_fitur_service():
     try:
         # Load dataset
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        dataset_path = os.path.join(base_dir, "data", "dataset-1-cleaned.csv")
+        dataset_path = os.path.join(base_dir, "data", "dataset-cleaned.csv")
         df = pd.read_csv(dataset_path, sep=';')
 
         # Pisahkan fitur dan target
